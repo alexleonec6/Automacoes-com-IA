@@ -1,0 +1,140 @@
+{
+  "name": "Pipeline Automação com IA - Telegram e Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook-evento-ia",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Webhook Recebimento",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "message": "Você é um assistente de triagem corporativa. Classifique a mensagem recebida, indique a urgência (BAIXA, MEDIA, ALTA, CRITICA) e elabore uma resposta inicial objetiva."
+            },
+            {
+              "role": "user",
+              "message": "={{ $json.body.mensagem }}"
+            }
+          ]
+        }
+      },
+      "id": "2",
+      "name": "Classificador IA",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.urgencia }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "CRITICA"
+            },
+            {
+              "value2": "ALTA"
+            }
+          ]
+        }
+      },
+      "id": "3",
+      "name": "Verifica Urgência",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "🚨 *Alerta Crítico de Automação*\n\nOrigem: {{ $json.origem }}\nResumo: {{ $json.resumo }}\nResposta sugerida: {{ $json.resposta_sugerida }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "4",
+      "name": "Alerta Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "http://localhost:8000/webhook",
+        "options": {},
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "origem",
+              "value": "n8n"
+            },
+            {
+              "name": "mensagem",
+              "value": "={{ $json.body.mensagem }}"
+            }
+          ]
+        }
+      },
+      "id": "5",
+      "name": "Persistir no Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [900, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Recebimento": {
+      "main": [
+        [
+          {
+            "node": "Classificador IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classificador IA": {
+      "main": [
+        [
+          {
+            "node": "Verifica Urgência",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verifica Urgência": {
+      "main": [
+        [
+          {
+            "node": "Alerta Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Persistir no Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
